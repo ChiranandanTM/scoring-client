@@ -109,6 +109,16 @@ function validateSubmissions() {
                 groupSubs.sort((a, b) => a.timestamp - b.timestamp);
 
                 if (!isTimerRunning) {
+                    // Timer stopped — show visual feedback but do NOT award points
+                    const earliest = groupSubs[0];
+                    const teamKey = earliest.player === 'red' ? 'hong' : 'chong';
+                    const refName = (data.referees && data.referees[earliest.refereeId] && data.referees[earliest.refereeId].name) || earliest.refereeId;
+                    db.ref(`rooms/${currentRoomId}/lastAction/${teamKey}`).set({
+                        image: earliest.image || '',
+                        refereeName: refName,
+                        timestamp: Date.now(),
+                        sourceTeam: earliest.player
+                    }).catch(e => console.error('lastAction update error:', e));
                     groupSubs.forEach(s => keysToRemove.add(s.key));
                     return;
                 }
