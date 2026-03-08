@@ -330,32 +330,71 @@ function scanQRCode() {
 
     qrReader.innerHTML = '';
 
-    qrReader.style.display = 'block';
+    // Overlay backdrop
+    qrReader.style.display = 'flex';
+    qrReader.style.flexDirection = 'column';
+    qrReader.style.alignItems = 'center';
+    qrReader.style.justifyContent = 'center';
+    qrReader.style.gap = '16px';
     qrReader.style.position = 'fixed';
-    qrReader.style.top = '50%';
-    qrReader.style.left = '50%';
-    qrReader.style.transform = 'translate(-50%, -50%)';
+    qrReader.style.inset = '0';
     qrReader.style.width = '100%';
-    qrReader.style.maxWidth = '300px';
-    qrReader.style.height = '300px';
-    qrReader.style.backgroundColor = '#000';
+    qrReader.style.height = '100%';
+    qrReader.style.maxWidth = 'none';
+    qrReader.style.backgroundColor = 'rgba(0,0,0,0.88)';
     qrReader.style.zIndex = '9999';
-    qrReader.style.padding = '10px';
-    qrReader.style.borderRadius = '10px';
+    qrReader.style.padding = '24px';
+    qrReader.style.boxSizing = 'border-box';
+    qrReader.style.borderRadius = '0';
+    qrReader.style.transform = 'none';
+    qrReader.style.top = '0';
+    qrReader.style.left = '0';
+
+    // Title
+    const scanTitle = document.createElement('p');
+    scanTitle.textContent = 'Scan Room QR Code';
+    scanTitle.style.color = '#fff';
+    scanTitle.style.fontSize = '1.3em';
+    scanTitle.style.fontWeight = '600';
+    scanTitle.style.margin = '0';
+    scanTitle.style.textAlign = 'center';
+    scanTitle.style.letterSpacing = '0.04em';
+    qrReader.appendChild(scanTitle);
+
+    // Camera viewport wrapper (fixed square, centred)
+    const viewportWrapper = document.createElement('div');
+    viewportWrapper.id = 'qr-viewport';
+    viewportWrapper.style.width = 'min(70vw, 70vh, 340px)';
+    viewportWrapper.style.height = 'min(70vw, 70vh, 340px)';
+    viewportWrapper.style.maxWidth = '340px';
+    viewportWrapper.style.maxHeight = '340px';
+    viewportWrapper.style.borderRadius = '12px';
+    viewportWrapper.style.overflow = 'hidden';
+    viewportWrapper.style.border = '3px solid rgba(255,255,255,0.5)';
+    viewportWrapper.style.boxSizing = 'border-box';
+    viewportWrapper.style.background = '#111';
+    viewportWrapper.style.position = 'relative';
+    qrReader.appendChild(viewportWrapper);
+
+    const statusMessage = document.createElement('p');
+    statusMessage.textContent = 'Point your camera at the QR code';
+    statusMessage.style.color = 'rgba(255,255,255,0.75)';
+    statusMessage.style.fontSize = '0.95em';
+    statusMessage.style.textAlign = 'center';
+    statusMessage.style.margin = '0';
+    qrReader.appendChild(statusMessage);
 
     const closeButton = document.createElement('button');
-    closeButton.textContent = '✕';
-    closeButton.style.position = 'absolute';
-    closeButton.style.right = '10px';
-    closeButton.style.top = '10px';
-    closeButton.style.backgroundColor = '#ff4444';
+    closeButton.textContent = 'Cancel';
+    closeButton.style.padding = '12px 40px';
+    closeButton.style.backgroundColor = 'transparent';
     closeButton.style.color = '#fff';
-    closeButton.style.border = 'none';
-    closeButton.style.borderRadius = '50%';
-    closeButton.style.width = '30px';
-    closeButton.style.height = '30px';
-    closeButton.style.fontSize = '20px';
+    closeButton.style.border = '2px solid rgba(255,255,255,0.6)';
+    closeButton.style.borderRadius = '8px';
+    closeButton.style.fontSize = '1em';
+    closeButton.style.fontWeight = '600';
     closeButton.style.cursor = 'pointer';
+    closeButton.style.letterSpacing = '0.05em';
     closeButton.onclick = () => {
         if (html5QrCode) html5QrCode.stop().catch(err => console.error("Error stopping scanner:", err));
         qrReader.style.display = 'none';
@@ -363,15 +402,9 @@ function scanQRCode() {
     };
     qrReader.appendChild(closeButton);
 
-    const statusMessage = document.createElement('p');
-    statusMessage.textContent = 'Scanning for QR code...';
-    statusMessage.style.color = '#fff';
-    statusMessage.style.textAlign = 'center';
-    qrReader.appendChild(statusMessage);
+    html5QrCode = new Html5Qrcode("qr-viewport");
 
-    html5QrCode = new Html5Qrcode("qr-reader");
-
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    const config = { fps: 10, qrbox: { width: 260, height: 260 } };
 
     navigator.mediaDevices.enumerateDevices().then(devices => {
         const rearCameras = devices.filter(device => device.kind === "videoinput" && (device.label.toLowerCase().includes("back") || device.label.toLowerCase().includes("rear")));
