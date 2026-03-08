@@ -80,7 +80,7 @@ function validateSubmissions() {
         const leaderId = refereeIds[0];
         const refereeCount = refereeIds.length;
         const now = Date.now();
-        const SYNC_WINDOW_MS = 5000; // 5 seconds for multi-referee validation
+        const SYNC_WINDOW_MS = 5000; // 0.8 seconds — referees must agree within this window
         const isTimerRunning = !!(data.timer && data.timer.running);
 
         // Only leader validates and awards points. Non-leaders simply submit.
@@ -89,17 +89,15 @@ function validateSubmissions() {
         const submissionsRef = db.ref(`rooms/${currentRoomId}/submissions`);
         submissionsRef.once('value').then(subSnap => {
             const subsRaw = subSnap.val() || {};
-            // Convert to array with key so we can remove later
             const subs = Object.entries(subsRaw).map(([key, v]) => ({ key, ...v }));
 
             if (subs.length === 0) return;
 
-            // Group by identical button: player + points + action
+            // Group by exact match: same player + same action + same points.
+            // Submissions from different players are in separate groups and never merge.
             const groups = {};
             subs.forEach(s => {
-                // ignore malformed
                 if (!s.player || !s.action || typeof s.points === 'undefined' || !s.refereeId) return;
-
                 const groupKey = `${s.player}__${s.points}__${s.action}`;
                 groups[groupKey] = groups[groupKey] || [];
                 groups[groupKey].push(s);
@@ -107,89 +105,89 @@ function validateSubmissions() {
 
             const keysToRemove = new Set();
 
-            // Determine which referees are actively submitting in this batch
-            // (have at least one submission within the sync window)
-            const activeRefereeIds = new Set();
-            subs.forEach(s => {
-                if (s.refereeId && (now - s.timestamp) <= SYNC_WINDOW_MS) {
-                    activeRefereeIds.add(s.refereeId);
-                }
-            });
-            const allRefereesActive = activeRefereeIds.size >= refereeCount && refereeCount > 0;
-
             Object.entries(groups).forEach(([groupKey, groupSubs]) => {
-                // Sort by timestamp
                 groupSubs.sort((a, b) => a.timestamp - b.timestamp);
-                const earliest = groupSubs[0];
-                const sampleImage = earliest.image || '';
-                const sampleRefName = (data.referees && data.referees[earliest.refereeId] && data.referees[earliest.refereeId].name) || earliest.refereeId || '';
-
-                // Update lastAction in DB so scoreboard shows image + referee name quickly
-                try {
-                    const teamKey = earliest.player === 'red' ? 'hong' : 'chong';
-                    db.ref(`rooms/${currentRoomId}/lastAction/${teamKey}`).set({
-                        image: sampleImage,
-                        refereeName: sampleRefName,
-                        timestamp: Date.now(),
-                        sourceTeam: earliest.player
-                    }).catch(e => console.error(e));
-                } catch (e) { console.error(e); }
 
                 if (!isTimerRunning) {
-                    // Timer not running -> remove submissions without awarding
                     groupSubs.forEach(s => keysToRemove.add(s.key));
                     return;
                 }
 
-                // Determine unique referees in this group and the time spread
-                const uniqueRefereeIds = [...new Set(groupSubs.map(s => s.refereeId))];
-                const uniqueCount = uniqueRefereeIds.length;
-                const earliestTs = groupSubs[0].timestamp;
-                const latestTs = groupSubs[groupSubs.length - 1].timestamp;
-                const spread = latestTs - earliestTs;
+                // Deduplicate: one vote per referee (keep earliest submission per referee)
+                const refMap = {};
+                groupSubs.forEach(s => {
+                    if (!refMap[s.refereeId] || s.timestamp < refMap[s.refereeId].timestamp) {
+                        refMap[s.refereeId] = s;
+                    }
+                });
+                const uniqueSubs = Object.values(refMap).sort((a, b) => a.timestamp - b.timestamp);
+                const uniqueCount = uniqueSubs.length;
 
-                // Award rules:
-                // - 1 referee in room: award on any single submission
-                // - 2 referees: both pressed same button within window, OR
-                //   both referees are actively submitting (even for different players)
-                //   and at least 1 pressed this button — handles simultaneous scoring
-                // - 3+ referees: at least 2 pressed same button, OR all referees
-                //   are active and at least 1 pressed this button
                 let shouldAward = false;
+                let awardingSubs = [];
 
                 if (refereeCount <= 1) {
-                    if (uniqueCount >= 1) shouldAward = true;
+                    // Single referee: award immediately on any submission
+                    if (uniqueCount >= 1) {
+                        shouldAward = true;
+                        awardingSubs = [uniqueSubs[0]];
+                    }
                 } else if (refereeCount === 2) {
-                    if (uniqueCount === 2 && spread <= SYNC_WINDOW_MS) {
-                        shouldAward = true;
-                    } else if (allRefereesActive && uniqueCount >= 1) {
-                        // Both referees are actively scoring — trust each individual action
-                        // This handles simultaneous scoring (both players hit at once)
-                        shouldAward = true;
+                    // Both referees must press the exact same player + button within 800ms
+                    if (uniqueCount >= 2) {
+                        const spread = uniqueSubs[1].timestamp - uniqueSubs[0].timestamp;
+                        if (spread <= SYNC_WINDOW_MS) {
+                            shouldAward = true;
+                            awardingSubs = uniqueSubs;
+                        }
                     }
-                } else { // 3 or more referees
-                    if (uniqueCount >= 2 && spread <= SYNC_WINDOW_MS) {
-                        shouldAward = true;
-                    } else if (allRefereesActive && uniqueCount >= 1) {
-                        shouldAward = true;
+                    // Only 1 referee agreed — keep waiting, do not remove yet
+                } else {
+                    // 3+ referees: at least 2 must press the exact same player + button within 800ms
+                    // Check consecutive pairs in the sorted array (optimal for finding nearest timestamps)
+                    for (let i = 0; i < uniqueSubs.length - 1; i++) {
+                        const spread = uniqueSubs[i + 1].timestamp - uniqueSubs[i].timestamp;
+                        if (spread <= SYNC_WINDOW_MS) {
+                            shouldAward = true;
+                            // Collect all agreeing referees within 800ms of this anchor
+                            awardingSubs = uniqueSubs.filter(
+                                s => s.timestamp - uniqueSubs[i].timestamp <= SYNC_WINDOW_MS
+                            );
+                            break;
+                        }
                     }
+                    // Not enough agreement yet — keep waiting, do not remove yet
                 }
 
                 if (shouldAward) {
-                    awardPoints(groupSubs[0].player, groupSubs[0].points);
+                    const winner = awardingSubs[0];
+                    const teamKey = winner.player === 'red' ? 'hong' : 'chong';
+                    // Build combined referee name from all agreeing referees
+                    const refNames = awardingSubs.map(s =>
+                        (data.referees && data.referees[s.refereeId] && data.referees[s.refereeId].name) || s.refereeId
+                    );
+                    db.ref(`rooms/${currentRoomId}/lastAction/${teamKey}`).set({
+                        image: winner.image || '',
+                        refereeName: refNames.join(' & '),
+                        timestamp: Date.now(),
+                        sourceTeam: winner.player
+                    }).catch(e => console.error('lastAction update error:', e));
+
+                    awardPoints(winner.player, winner.points);
+                    // Remove ALL submissions in this group to prevent double-awarding
                     groupSubs.forEach(s => keysToRemove.add(s.key));
                 }
-                // If NOT awarded, do NOT remove — keep waiting for more referees to agree.
-                // The expiration cleanup below will handle truly stale submissions.
+                // If NOT awarded, keep waiting — expiration cleanup below handles stale subs
             });
 
-            // Remove only awarded or timer-stopped submissions
+            // Remove awarded or timer-stopped submissions
             keysToRemove.forEach(k => {
                 if (!k) return;
                 db.ref(`rooms/${currentRoomId}/submissions/${k}`).remove().catch(err => console.error("remove error", err));
             });
 
-            // Clean very old submissions (> SYNC_WINDOW_MS * 2) to avoid clutter
+            // Clean up submissions older than 2× the sync window (1600ms)
+            // These are submissions that never reached quorum within the allowed time
             const expiration = SYNC_WINDOW_MS * 2;
             subs.forEach(s => {
                 if (now - s.timestamp > expiration) {
