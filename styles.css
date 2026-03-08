@@ -1,0 +1,289 @@
+body,
+html {
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #000;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+#roomEntry {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: url('images/background1.jpg') no-repeat center center fixed;
+    background-size: cover;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 2;
+    color: #fff;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+#roomEntry h2 {
+    font-size: 2em;
+    margin-bottom: 20px;
+}
+
+#roomEntry input {
+    padding: 12px;
+    font-size: 1em;
+    border: 2px solid #fff;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.9);
+    width: 80%;
+    max-width: 300px;
+    margin: 10px auto;
+    box-sizing: border-box;
+}
+
+#roomEntry button {
+    padding: 12px;
+    font-size: 1em;
+    border: none;
+    border-radius: 5px;
+    background: #007bff;
+    color: #fff;
+    width: 80%;
+    max-width: 300px;
+    margin: 10px auto;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+#roomEntry button:hover {
+    background: #0056b3;
+}
+
+.container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 100vw;
+    height: 100vh;
+    gap: 1px;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+.section {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 5px;
+    box-sizing: border-box;
+    border: 1px solid black;
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    pointer-events: auto;
+}
+
+.red {
+    background-color: #ff0505;
+}
+
+.blue {
+    background-color: #0511fc;
+}
+
+img,
+.text,
+.label {
+    pointer-events: none;
+}
+
+img {
+    max-width: 20vw;
+    max-height: 20vh;
+    object-fit: contain;
+}
+
+.text,
+.label {
+    color: #fff;
+    text-align: center;
+}
+
+.label {
+    font-weight: bold;
+    font-size: 1.2rem;
+    margin-top: 5px;
+}
+
+.text {
+    font-size: 1rem;
+    margin-top: 5px;
+}
+
+.click-animation {
+    animation: clickEffect 0.3s ease, pulseGlow 0.5s ease;
+}
+
+@keyframes clickEffect {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(0.95);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes pulseGlow {
+    0% {
+        box-shadow: 0 0 0 rgba(255, 255, 0, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 30px 10px rgba(255, 255, 0, 0.9);
+    }
+    100% {
+        box-shadow: 0 0 0 rgba(255, 255, 0, 0);
+    }
+}
+
+.swipe-animation-left {
+    animation: swipeEffectLeft 0.5s ease forwards;
+}
+
+.swipe-animation-right {
+    animation: swipeEffectRight 0.5s ease forwards;
+}
+
+@keyframes swipeEffectLeft {
+    0% {
+        transform: translateX(0);
+    }
+
+    50% {
+        transform: translateX(-50px);
+    }
+
+    100% {
+        transform: translateX(0);
+    }
+}
+
+@keyframes swipeEffectRight {
+    0% {
+        transform: translateX(0);
+    }
+
+    50% {
+        transform: translateX(50px);
+    }
+
+    100% {
+        transform: translateX(0);
+    }
+}
+
+.section:active,
+.section.pressed {
+    background-color: rgba(255, 255, 255, 0.7) !important;
+    transform: scale(0.92);
+    box-shadow: inset 0 0 30px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 0, 0.6);
+    border: 3px solid #ffff00 !important;
+    transition: all 0.1s ease;
+}
+
+/* Mobile landscape (optimized for full-screen) */
+@media (max-width: 1024px) and (orientation: landscape) {
+    .container {
+        gap: 1px;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    .section {
+        padding: 2px;
+    }
+
+    img {
+        max-width: 15vw;
+        max-height: 15vh;
+    }
+
+    .text {
+        font-size: 0.9rem;
+        margin-top: 2px;
+    }
+
+    .label {
+        font-size: 1rem;
+        margin-top: 2px;
+    }
+}
+
+/* Small mobile screens */
+@media (max-width: 600px) and (orientation: landscape) {
+    .container {
+        gap: 0.5px;
+        width: 100vw;
+        height: 100vh;
+    }
+
+    .section {
+        padding: 1px;
+    }
+
+    img {
+        max-width: 12vw;
+        max-height: 12vh;
+    }
+
+    .text {
+        font-size: 0.8rem;
+        margin-top: 1px;
+    }
+
+    .label {
+        font-size: 0.9rem;
+        margin-top: 1px;
+    }
+}
+
+/* Laptops and larger screens */
+@media (min-width: 1025px) {
+    .container {
+        gap: 5px;
+        max-width: 1200px;
+        height: 100vh;
+        margin: auto;
+    }
+
+    .section {
+        padding: 10px;
+    }
+
+    img {
+        max-width: 150px;
+        max-height: 150px;
+    }
+
+    .text {
+        font-size: 1.2rem;
+        margin-top: 10px;
+    }
+
+    .label {
+        font-size: 1.5rem;
+        margin-top: 10px;
+    }
+}

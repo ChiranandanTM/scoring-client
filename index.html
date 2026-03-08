@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>kyorugicore Scoring System</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-database-compat.js"></script>
+  <!-- HTML5 QR Code Scanner -->
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <script src="script.js" defer></script>
+  <!-- Removed: <script src="index.js" defer></script> -->
+  <!-- Added index.js script -->
+  <style>
+    /* Ensure full-screen fit on mobile in landscape */
+    @media only screen and (max-width: 768px) {
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      #roomEntry,
+      #scoringUI {
+        width: 100vw;
+        height: 100vh;
+        font-size: 16px;
+        box-sizing: border-box;
+        padding: 20px;
+      }
+
+      #roomEntry h2 {
+        font-size: 1.5em;
+      }
+
+      #roomEntry input,
+      #roomEntry button {
+        font-size: 1em;
+        padding: 10px;
+        width: 80%;
+        max-width: 300px;
+        margin: 10px auto;
+        display: block;
+      }
+
+      #qr-reader {
+        width: 100% !important;
+        max-width: 300px;
+        margin: 0 auto;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 1000;
+      }
+
+      .container .section {
+        flex: 1 1 100%;
+        max-width: 100%;
+        margin: 10px 0;
+      }
+
+      .container .section img {
+        max-width: 100px;
+        height: auto;
+      }
+
+      .container .section .text,
+      .container .section .label {
+        font-size: 1em;
+      }
+    }
+
+    /* Hide content when in portrait mode on mobile */
+    @media only screen and (max-width: 768px) and (orientation: portrait) {
+      #scoringUI {
+        display: none;
+      }
+
+      #orientationWarning {
+        display: flex !important;
+      }
+
+      #roomEntry {
+        display: block !important;
+        /* Always show login in portrait if not logged in */
+      }
+    }
+
+    /* Ensure laptop display remains unaffected */
+    @media only screen and (min-width: 769px) {
+      #orientationWarning {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Orientation Warning -->
+  <div id="orientationWarning"
+    style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:#000; color:white; z-index:9999; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px;">
+    <div>
+      <h2>Please rotate your device</h2>
+      <p>This app works best in landscape mode.</p>
+    </div>
+  </div>
+
+  <!-- Room Entry UI -->
+  <div id="roomEntry">
+    <h2>Enter Room Code</h2>
+    <input type="text" id="roomCodeInput" placeholder="e.g., 3F6XKP">
+    <button onclick="joinRoom()">Join Room</button>
+    <button id="scanQRButton">Scan QR Code</button>
+    <div id="qr-reader" style="width: 300px; display: none;"></div>
+  </div>
+
+  <!-- Scoring UI (initially hidden) -->
+  <div id="scoringUI" style="display: none;">
+    <div class="container">
+      <!-- Replace the image sections with this updated code -->
+      <!-- Red Head Kick -->
+      <div class="section red red-head">
+        <img src="D_NQ_NP_2X_793353-MLA71300815159_082023-F-removebg-preview.png" alt="Head Kick"
+          onerror="this.src='https://via.placeholder.com/150?text=Head+Kick'">
+        <div class="text">Spinning kick to the head</div>
+        <div class="label">Hong Head Kick</div>
+      </div>
+
+      <!-- Blue Head Kick -->
+      <div class="section blue blue-head">
+        <img src="D_NQ_NP_2X_730871-MLA71258941722_082023-F-removebg-preview.png" alt="Head Kick"
+          onerror="this.src='https://via.placeholder.com/150?text=Head+Kick'">
+        <div class="text">Spinning kick to the head</div>
+        <div class="label">Chong Head Kick</div>
+      </div>
+
+      <!-- Red Punch -->
+      <div class="section red red-punch">
+        <img src="istockphoto-1468209328-612x612-removebg-preview.png" alt="Punch"
+          onerror="this.src='https://via.placeholder.com/150?text=Punch'">
+        <div class="text">Punch</div>
+        <div class="label">Hong Punch</div>
+      </div>
+
+      <!-- Blue Punch -->
+      <div class="section blue blue-punch">
+        <img src="istockphoto-1468209328-612x612-removebg-preview.png" alt="Punch"
+          onerror="this.src='https://via.placeholder.com/150?text=Punch'">
+        <div class="text">Punch</div>
+        <div class="label">Chong Punch</div>
+      </div>
+
+      <!-- Red Body Kick -->
+      <div class="section red red-body">
+        <img src="taekwondo-chest-guard-daedo--1000x1000-removebg-preview.png" alt="Body Kick"
+          onerror="this.src='https://via.placeholder.com/150?text=Body+Kick'">
+        <div class="text">Turning kick to the trunk</div>
+        <div class="label">Hong Body Kick</div>
+      </div>
+
+      <!-- Blue Body Kick -->
+      <div class="section blue blue-body">
+        <img src="new-taekwondo-body-protector-reversible.jpg" alt="Body Kick"
+          onerror="this.src='https://via.placeholder.com/150?text=Body+Kick'">
+        <div class="text">Turning kick to the trunk</div>
+        <div class="label">Chong Body Kick</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Check login state and orientation
+    function checkLoginAndOrientation() {
+      const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+      const roomEntry = document.getElementById('roomEntry');
+      const scoringUI = document.getElementById('scoringUI');
+      const orientationWarning = document.getElementById('orientationWarning');
+
+      if (window.innerWidth <= 768) {
+        const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+        if (isLoggedIn) {
+          if (isPortrait) {
+            orientationWarning.style.display = 'flex';
+            scoringUI.style.display = 'none';
+            roomEntry.style.display = 'none';
+          } else {
+            orientationWarning.style.display = 'none';
+            scoringUI.style.display = 'block';
+            roomEntry.style.display = 'none';
+          }
+        } else {
+          orientationWarning.style.display = 'none';
+          scoringUI.style.display = 'none';
+          roomEntry.style.display = 'block';
+        }
+      } else {
+        orientationWarning.style.display = 'none';
+        if (isLoggedIn) {
+          scoringUI.style.display = 'block';
+          roomEntry.style.display = 'none';
+        } else {
+          scoringUI.style.display = 'none';
+          roomEntry.style.display = 'block';
+        }
+      }
+    }
+
+    window.addEventListener('load', checkLoginAndOrientation);
+    window.addEventListener('orientationchange', checkLoginAndOrientation);
+    window.addEventListener('resize', checkLoginAndOrientation);
+
+    // Clear session storage on page close/refresh
+    window.addEventListener('beforeunload', () => {
+      sessionStorage.removeItem('isLoggedIn');
+      sessionStorage.removeItem('currentRoomId');
+    });
+  </script>
+</body>
+
+</html>
