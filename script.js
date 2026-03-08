@@ -320,6 +320,27 @@ function requestFullscreen() {
     }
 }
 
+function toggleFullscreen() {
+    const btn = document.getElementById('fullscreenButton');
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        requestFullscreen();
+        if (btn) btn.innerHTML = '&#x2715; Exit Fullscreen';
+    } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        if (btn) btn.innerHTML = '&#x26F6; Enter Fullscreen';
+    }
+}
+
+// Keep button label in sync if user exits fullscreen via keyboard (Esc)
+document.addEventListener('fullscreenchange', () => {
+    const btn = document.getElementById('fullscreenButton');
+    if (!btn) return;
+    btn.innerHTML = document.fullscreenElement
+        ? '&#x2715; Exit Fullscreen'
+        : '&#x26F6; Enter Fullscreen';
+});
+
 function scanQRCode() {
     const qrReader = document.getElementById('qr-reader');
     if (!qrReader) {
