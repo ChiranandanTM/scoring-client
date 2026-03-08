@@ -20,6 +20,14 @@ if (!refereeId) {
 
 let html5QrCode = null;
 
+// Local caches — kept up-to-date by .on() listeners so validateSubmissions
+// never needs a network read, making it resilient under low connectivity.
+let _cachedRoomData = null;
+let _cachedSubsData = {};
+// Tracks submission keys currently being processed to prevent double-awarding
+// before the cache is refreshed after a Firebase remove.
+let _processingKeys = new Set();
+
 // In app/script.js
 
 function submitPoints(player, points, action) {
@@ -64,32 +72,29 @@ function submitPoints(player, points, action) {
     console.log(`Points submitted: ${points} for ${player} (${action}) by referee ${refereeId}`);
 }
 
-setInterval(validateSubmissions, 300);
+setInterval(validateSubmissions, 500); // 500ms — fast enough, 40% fewer Firebase calls than 300ms
 
 // --- VALIDATOR (leader device) ---
-// Runs on the leader referee device and validates submissions in Firebase.
+// Runs on the leader referee device entirely from local cache — zero network reads.
 function validateSubmissions() {
-    if (!currentRoomId) return;
+    if (!currentRoomId || !_cachedRoomData) return;
 
-    db.ref(`rooms/${currentRoomId}`).once('value').then((snapshot) => {
-        const data = snapshot.val();
-        if (!data) return;
+    const data = _cachedRoomData;
+    const referees = data.referees || {};
+    const refereeIds = Object.keys(referees).sort();
+    const leaderId = refereeIds[0];
+    const refereeCount = refereeIds.length;
+    const now = Date.now();
+    const SYNC_WINDOW_MS = 800; // 0.8 seconds — referees must agree within this window
+    const isTimerRunning = !!(data.timer && data.timer.running);
 
-        const referees = data.referees || {};
-        const refereeIds = Object.keys(referees).sort();
-        const leaderId = refereeIds[0];
-        const refereeCount = refereeIds.length;
-        const now = Date.now();
-        const SYNC_WINDOW_MS = 5000; // 0.8 seconds — referees must agree within this window
-        const isTimerRunning = !!(data.timer && data.timer.running);
+    // Only leader validates and awards points. Non-leaders simply submit.
+    if (refereeId !== leaderId) return;
 
-        // Only leader validates and awards points. Non-leaders simply submit.
-        if (refereeId !== leaderId) return;
+    const subsRaw = _cachedSubsData;
+    const subs = Object.entries(subsRaw).map(([key, v]) => ({ key, ...v }));
 
-        const submissionsRef = db.ref(`rooms/${currentRoomId}/submissions`);
-        submissionsRef.once('value').then(subSnap => {
-            const subsRaw = subSnap.val() || {};
-            const subs = Object.entries(subsRaw).map(([key, v]) => ({ key, ...v }));
+    if (subs.length === 0) return;
 
             if (subs.length === 0) return;
 
@@ -169,7 +174,9 @@ function validateSubmissions() {
                     // Not enough agreement yet — keep waiting, do not remove yet
                 }
 
-                if (shouldAward) {
+                if (shouldAward && !_processingKeys.has(awardingSubs[0].key)) {
+                    // Mark as processing to prevent double-award on next tick before cache update
+                    awardingSubs.forEach(s => _processingKeys.add(s.key));
                     const winner = awardingSubs[0];
                     const teamKey = winner.player === 'red' ? 'hong' : 'chong';
                     // Build combined referee name from all agreeing referees
@@ -204,8 +211,6 @@ function validateSubmissions() {
                     db.ref(`rooms/${currentRoomId}/submissions/${s.key}`).remove().catch(err => console.error("cleanup error", err));
                 }
             });
-        }).catch(err => console.error("submissions read error", err));
-    }).catch(err => console.error("room read error", err));
 }
 
 function awardPoints(player, points) {
@@ -679,6 +684,9 @@ document.addEventListener('DOMContentLoaded', () => {
     checkLoginAndOrientation();
     window.addEventListener('resize', checkLoginAndOrientation);
 
+    // Connection indicator
+    setupConnectionMonitor();
+
     document.body.addEventListener('click', function fullscreenRequest() {
         requestFullscreen();
         document.body.removeEventListener('click', fullscreenRequest);
@@ -692,6 +700,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 });
+
+// Shows a live connection dot in the top-right corner of the referee UI.
+// Green = connected, Red = reconnecting (Firebase will retry automatically).
+function setupConnectionMonitor() {
+    firebase.database().ref('.info/connected').on('value', (snapshot) => {
+        const connected = snapshot.val() === true;
+        const dot = document.getElementById('connDot');
+        const label = document.getElementById('connLabel');
+        if (dot) dot.style.background = connected ? '#22cc55' : '#ff4444';
+        if (label) label.textContent = connected ? 'Connected' : 'Reconnecting…';
+    });
+}
 
 // Add stub for checkLoginAndOrientation if not defined elsewhere
 function checkLoginAndOrientation() {
@@ -710,11 +730,17 @@ function setupScoreListener() {
 
     // Remove any existing listeners
     db.ref(`rooms/${currentRoomId}`).off('value');
+    db.ref(`rooms/${currentRoomId}/submissions`).off('value');
 
-    // Add new listener
+    // Keep room and submissions synced in local memory cache even under poor connectivity
+    db.ref(`rooms/${currentRoomId}`).keepSynced(true);
+    db.ref(`rooms/${currentRoomId}/submissions`).keepSynced(true);
+
+    // Room data listener — populates _cachedRoomData used by validateSubmissions
     db.ref(`rooms/${currentRoomId}`).on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
+        _cachedRoomData = data;
 
         console.log("Received score update:", data);
 
@@ -727,5 +753,15 @@ function setupScoreListener() {
         if (data.lastScoreUpdate) {
             console.log("Last score update timestamp:", data.lastScoreUpdate);
         }
+    });
+
+    // Submissions listener — populates _cachedSubsData, clears processing flags for removed keys
+    db.ref(`rooms/${currentRoomId}/submissions`).on('value', (snapshot) => {
+        const newSubsData = snapshot.val() || {};
+        // Clear processing flags for submissions that have been removed from Firebase
+        for (const key of _processingKeys) {
+            if (!newSubsData[key]) _processingKeys.delete(key);
+        }
+        _cachedSubsData = newSubsData;
     });
 }
