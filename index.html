@@ -222,6 +222,11 @@
       sessionStorage.removeItem('currentRoomId');
     });
   </script>
+  <!-- Connection status indicator (top-right, unobtrusive) -->
+  <div id="connectionStatus" style="position:fixed;top:10px;right:12px;display:flex;align-items:center;gap:6px;z-index:10000;pointer-events:none;">
+    <span id="connDot" style="width:10px;height:10px;border-radius:50%;background:#888;display:inline-block;"></span>
+    <span id="connLabel" style="color:#fff;font-size:0.75em;opacity:0.8;text-shadow:0 1px 2px rgba(0,0,0,0.8);"></span>
+  </div>
 </body>
 
 </html>
